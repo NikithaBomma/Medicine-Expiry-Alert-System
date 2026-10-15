@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f4f8fc">
+    <meta name="referrer" content="no-referrer">
+    <title>{{ "Create account" if register else "Sign in" }} · MediTrack</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  </head>
+  <body class="auth-page">
+    <main class="auth-layout">
+      <section class="auth-story" aria-label="About MediTrack">
+        <a class="brand auth-brand" href="/" aria-label="MediTrack home">
+          <span class="brand-mark"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 5.5v21M5.5 16h21"/></svg></span>
+          <span class="brand-copy"><strong>meditrack</strong><small>MEDICINE, IN DATE</small></span>
+        </a>
+        <div class="auth-story-content">
+          <span class="auth-story-kicker"><span></span> SMARTER MEDICINE TRACKING</span>
+          <h2>Peace of mind,<br>one dose at a time.</h2>
+          <p>Know what you have, stay ahead of expiry dates, and keep your medicine information in one secure place.</p>
+          <div class="auth-benefits">
+            <div><span class="auth-benefit-icon">✓</span><span><strong>Private by account</strong><small>Your medicines stay yours.</small></span></div>
+            <div><span class="auth-benefit-icon">⌁</span><span><strong>Timely expiry alerts</strong><small>Get a heads-up before dates arrive.</small></span></div>
+          </div>
+        </div>
+        <div class="auth-story-footer"><span class="auth-shield">✳</span> Built to help you stay organized</div>
+        <span class="auth-decoration auth-decoration-one"></span><span class="auth-decoration auth-decoration-two"></span>
+      </section>
+      <section class="auth-panel">
+        <div class="auth-panel-top"><span class="auth-mobile-mark">✚</span><span>SECURE ACCOUNT ACCESS</span></div>
+        <div class="auth-form-content">
+          <span class="auth-eyebrow">{{ "GET STARTED" if register else "PASSWORD RESET" if forgot or reset else "WELCOME TO MEDITRACK" }}</span>
+          <h1>{{ "Create your account" if register else "Reset your password" if forgot or reset else "Welcome back" }}</h1>
+          <p class="auth-subtitle">{% if register %}Set up your personal account. Your medicine list will be private to you.{% elif forgot %}Enter the email address on your account and we’ll send a secure reset link if it exists.{% elif reset %}Choose a new password for your MediTrack account.{% else %}Sign in to see your personal medicines and expiry reminders.{% endif %}</p>
+          {% if password_reset %}<p class="auth-success" role="status">Your password has been updated. Sign in with your new password.</p>{% endif %}
+          {% if reset_requested %}<p class="auth-success" role="status">If an account uses that address and email delivery is configured, a password reset link will arrive shortly. The link expires in 30 minutes.</p>{% endif %}
+          {% if forgot and not reset_requested and not reset_email_ready %}<p class="auth-provider-note" role="status">Password reset email is not configured yet. Ask the administrator to configure SMTP before requesting a reset link.</p>{% endif %}
+          {% if error %}<p class="auth-error" role="alert"><span aria-hidden="true">!</span>{{ error }}</p>{% endif %}
+          {% if not reset_invalid and not reset_requested and not password_reset %}
+          <form class="auth-form" method="post" action="{{ url_for('register_submit') if register else url_for('forgot_password') if forgot else url_for('reset_password', token=request.view_args.token) if reset else url_for('login_submit') }}">
+            {% if register %}
+            <label class="form-field"><span>Your name</span><input name="name" required maxlength="100" autocomplete="name" placeholder="e.g. Jordan Lee" value="{{ values.get('name', '') }}"></label>
+            {% endif %}
+            {% if register or forgot or not reset %}
+            <label class="form-field"><span>Email address</span><input name="email" required type="email" maxlength="254" autocomplete="email" placeholder="you@example.com" value="{{ values.get('email', '') }}"></label>
+            {% endif %}
+            {% if not forgot %}
+            <label class="form-field"><span>Password</span><span class="auth-password-wrap"><input name="password" required type="password" minlength="{{ 10 if register or reset else 1 }}" autocomplete="{{ 'new-password' if register or reset else 'current-password' }}" placeholder="{{ 'At least 10 characters' if register or reset else 'Enter your password' }}"><button class="password-visibility" type="button" aria-label="Show password" aria-pressed="false">Show</button></span>{% if register or reset %}<small class="auth-field-hint">Use at least 10 characters.</small>{% endif %}</label>
+            {% endif %}
+            {% if register or reset %}
+            <label class="form-field"><span>Confirm password</span><span class="auth-password-wrap"><input name="confirm_password" required type="password" minlength="10" autocomplete="new-password" placeholder="Enter your password again"><button class="password-visibility" type="button" aria-label="Show password" aria-pressed="false">Show</button></span></label>
+            {% endif %}
+            {% if register %}
+            <label class="auth-consent"><input name="expiry_email_enabled" type="checkbox"><span>Email me expiry reminders for medicines I add.</span></label>
+            {% endif %}
+            <button class="primary-button auth-submit" type="submit">{{ "Create personal account" if register else "Send reset link" if forgot else "Update password" if reset else "Sign in to MediTrack" }} <span aria-hidden="true">→</span></button>
+          </form>
+          {% endif %}
+          {% if reset_invalid or reset_requested or password_reset %}
+          <p class="auth-switch"><a href="{{ url_for('forgot_password') if reset_invalid else url_for('login') }}"> {{ "Request a new reset link" if reset_invalid else "Return to sign in" }}</a></p>
+          {% elif forgot %}
+          <p class="auth-switch">Remembered your password? <a href="{{ url_for('login') }}">Sign in</a></p>
+          {% elif reset %}
+          <p class="auth-switch">Need another link? <a href="{{ url_for('forgot_password') }}">Request a new reset link</a></p>
+          {% elif register %}
+          <p class="auth-switch">Already have an account? <a href="{{ url_for('login') }}">Sign in</a></p>
+          {% else %}
+          <p class="auth-switch"><a href="{{ url_for('forgot_password') }}">Forgot your password?</a></p>
+          <p class="auth-switch">New to MediTrack? <a href="{{ url_for('register') }}">Create a personal account</a></p>
+          {% endif %}
+          {% if not forgot and not reset %}<p class="auth-role-note"><span aria-hidden="true">♧</span> Management accounts are provided by your administrator.</p>{% endif %}
+        </div>
+        <footer class="auth-panel-footer">© 2026 MediTrack <span>·</span> Your medicine, in date</footer>
+      </section>
+    </main>
+    <script src="{{ url_for('static', filename='auth.js') }}" defer></script>
+  </body>
+</html>

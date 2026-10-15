@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f4f8fc">
+    <title>MediTrack — Expiry &amp; Inventory</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+  </head>
+  <body data-role="{{ 'management' if is_management else user.role }}" data-global-management="{{ 'true' if is_global_management else 'false' }}" data-user-id="{{ user.id }}">
+    <div class="app-shell">
+      <aside class="sidebar">
+        <a class="brand" href="/" aria-label="MediTrack home">
+          <span class="brand-mark"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 5.5v21M5.5 16h21"/></svg></span>
+          <span class="brand-copy"><strong>meditrack</strong><small>{{ "BRANCH WORKSPACE · " ~ user.branch_name if branch_staff else "PHARMACY INVENTORY" }}</small></span>
+        </a>
+        <div class="sidebar-label">WORKSPACE</div>
+        <nav class="side-nav" aria-label="Main navigation">
+          <a class="nav-link active" href="#overview"><span class="nav-icon">▦</span>Overview</a>
+          {% if is_management %}
+          <a class="nav-link" href="#inventory"><span class="nav-icon">▤</span>Medicine inventory</a>
+          <button class="nav-link" id="alerts-nav"><span class="nav-icon">♧</span>Expiry alerts <span class="nav-count" id="alert-nav-count">0</span></button>
+          {% if is_global_management %}<a class="nav-link" href="#branches"><span class="nav-icon">⌂</span>Branches</a>{% endif %}
+          {% else %}
+          <a class="nav-link" href="#inventory"><span class="nav-icon">▤</span>My medicines</a>
+          {% endif %}
+        </nav>
+        <div class="sidebar-bottom">
+          {% if is_global_management %}
+          <div class="help-card">
+            <span class="help-icon">✳</span>
+            <strong>Stay ahead of expiry</strong>
+            <p>Get timely reminders so nothing slips through the cracks.</p>
+            <button id="sidebar-notifications" class="text-button">Enable notifications <span>→</span></button>
+          </div>
+          {% endif %}
+          <div class="sidebar-user">
+            <span class="avatar">{{ user.name[:2].upper() }}</span>
+            <span class="user-copy"><strong>{{ user.name }}</strong><small>{{ "Branch staff · " ~ user.branch_name if branch_staff else "Management" if is_management else user.email }}</small></span>
+            <form action="{{ url_for('logout') }}" method="post"><button class="switch-account-button" title="Sign out and switch to another user" aria-label="Sign out and switch account"><span aria-hidden="true">⇥</span> Switch user</button></form>
+          </div>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <header class="topbar">
+          <div class="breadcrumbs"><span>Workspace</span><span class="crumb-divider">/</span><strong>Overview</strong></div>
+          <div class="top-actions">
+            <span class="today-label"><span class="live-dot"></span> Inventory up to date</span>
+            <button class="icon-button notification-button" id="enable-notifications" aria-label="Enable browser notifications" title="Enable browser notifications">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>
+              <span class="notification-dot" id="notification-dot"></span>
+            </button>
+            <button class="voice-alert-button" id="voice-alerts-toggle" type="button" aria-pressed="true" title="Speak expiry alerts automatically while the dashboard is open">🔊 Voice alerts on</button>
+            <span class="top-avatar" title="{{ user.email }}">{{ user.name[:2].upper() }}</span>
+          </div>
+        </header>
+
+        <div class="page-content">
+          <section class="welcome-row" id="overview">
+            <div>
+              <div class="eyebrow"><span class="eyebrow-line"></span> <span id="dashboard-date">YOUR INVENTORY CHECK-IN</span></div>
+              {% if is_management %}
+              <h1>Good morning, {{ user.name }} <span class="wave">✳</span></h1>
+              <p class="page-subtitle">Review inventory levels, medicine details, and expiry alerts.</p>
+              {% else %}
+              <h1>Your medicines, {{ user.name.split()[0] }} <span class="wave">✳</span></h1>
+              <p class="page-subtitle">Keep track of your medicines and get reminders before they expire.</p>
+              {% endif %}
+            </div>
+            <button class="primary-button" id="add-medicine"><span class="plus">+</span> {{ "Add medicine" if is_management else "Add my medicine" }}</button>
+          </section>
+
+          <section class="stats-grid {{ 'management-stats' if is_management else 'personal-stats' }}" aria-label="Inventory statistics">
+            <article class="stat-card total-card">
+              <div class="stat-top"><span class="stat-icon blue-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5zM4.5 7.8 12 12l7.5-4.2M12 12v9M8 5.2l8 4.4"/></svg></span><span class="stat-caption">ALL MEDICINES</span><span class="stat-more">•••</span></div>
+              <div class="stat-value" id="stat-total">—</div><div class="stat-foot"><span class="foot-muted">Across your inventory</span></div>
+            </article>
+            <article class="stat-card expiring-card">
+              <div class="stat-top"><span class="stat-icon amber-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><span class="stat-caption">EXPIRING SOON</span><span class="stat-more">•••</span></div>
+              <div class="stat-value" id="stat-expiring">—</div><div class="stat-foot"><span class="foot-warning"><span class="mini-dot"></span> Within the next 90 days</span></div>
+            </article>
+            <article class="stat-card expired-card">
+              <div class="stat-top"><span class="stat-icon red-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 10 18H2L12 3Z"/><path d="M12 9v5m0 3h.01"/></svg></span><span class="stat-caption">EXPIRED</span><span class="stat-more">•••</span></div>
+              <div class="stat-value" id="stat-expired">—</div><div class="stat-foot"><span class="foot-danger"><span class="mini-dot"></span> Needs immediate attention</span></div>
+            </article>
+            {% if is_management %}
+            <article class="stat-card stock-card">
+              <div class="stat-top"><span class="stat-icon purple-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 7 8-4 8 4v10l-8 4-8-4zM4.5 7.3 12 11l7.5-3.7M12 11v10m-4-16 8 4"/></svg></span><span class="stat-caption">LOW STOCK</span><span class="stat-more">•••</span></div>
+              <div class="stat-value" id="stat-low-stock">—</div><div class="stat-foot"><span class="foot-purple"><span class="mini-dot"></span> 10 units or fewer</span></div>
+            </article>
+            {% endif %}
+          </section>
+
+          <section class="alerts-panel {{ 'management-alerts' if is_management else 'personal-alerts' }}" aria-label="{{ 'Priority alerts' if is_management else 'My expiry reminders' }}">
+            <div class="alerts-heading">
+              <div class="alert-heading-icon">!</div>
+              <div class="alert-heading-copy"><h2>{{ "Needs your attention" if is_management else "Your expiry reminders" }}</h2><p>{{ "Prioritized items that may need a closer look." if is_management else "Only your medicine expiry dates are shown here." }}</p></div>
+              {% if is_management %}
+              <span class="priority-count" id="priority-count">0 alerts</span>
+              <button class="plain-link" id="view-alerts">View all alerts <span>→</span></button>
+              {% endif %}
+            </div>
+            <div class="alert-list" id="alert-list"><div class="alert-skeleton"></div></div>
+          </section>
+
+          {% if is_management %}
+          {% if is_global_management %}
+          <section class="branch-management-section" id="branches">
+            <div class="branch-management-heading">
+              <div><span class="eyebrow">ORGANIZATION</span><h2>Branches &amp; staff</h2><p>Create branch workspaces and keep each team's inventory separate.</p></div>
+              <span class="branch-count" id="branch-count">0 branches</span>
+            </div>
+            <div class="branch-management-grid">
+              <form class="branch-form" id="branch-form">
+                <h3>Add a branch</h3>
+                <label class="form-field"><span>Branch name</span><input name="name" required maxlength="100" placeholder="e.g. Northside Pharmacy"></label>
+                <label class="form-field"><span>Branch notification email</span><input name="notification_email" required type="email" maxlength="254" placeholder="northside@example.com"></label>
+                <button class="secondary-button" type="submit">Create branch</button>
+                <p class="form-error" id="branch-error" role="alert" hidden></p>
+              </form>
+              <form class="branch-form" id="staff-form">
+                <h3>Add branch staff</h3>
+                <label class="form-field"><span>Staff name</span><input name="name" required maxlength="100" placeholder="e.g. Jordan Lee"></label>
+                <label class="form-field"><span>Staff email / sign-in</span><input name="email" required type="email" maxlength="254" placeholder="staff@example.com"></label>
+                <label class="form-field"><span>Temporary password</span><input name="password" required type="password" minlength="10" autocomplete="new-password" placeholder="At least 10 characters"></label>
+                <label class="form-field"><span>Assign branch</span><select name="branch_id" id="staff-branch" required><option value="">Create a branch first</option></select></label>
+                <button class="secondary-button" type="submit">Create staff account</button>
+                <p class="form-error" id="staff-error" role="alert" hidden></p>
+              </form>
+            </div>
+            <div class="branch-list" id="branch-list"><p>Loading branches…</p></div>
+          </section>
+          <section class="notification-section">
+            <details class="notification-center" id="notification-settings">
+              <summary>
+                <span class="settings-icon">✉</span>
+                <span class="settings-summary"><strong>Email reminders and weekly digest</strong><small>Send alerts to the person who added each medicine.</small></span>
+                <span class="settings-expand">Configure <span>⌄</span></span>
+              </summary>
+              <div class="settings-content">
+                <div class="settings-info">
+                  <span class="settings-info-icon">i</span>
+                  <p>New medicine uploads use email only. Configure system-wide expiry reminder days, weekly summaries, and low-stock alerts for managed inventory.</p>
+                </div>
+                <div class="channel-settings">
+                  <label class="channel-option"><input type="checkbox" id="email-enabled"><span><strong>Email reminders</strong><small id="email-provider-status">Checking SMTP setup…</small></span></label>
+                  <label class="channel-option"><input type="checkbox" id="whatsapp-enabled"><span><strong>WhatsApp reminders</strong><small id="whatsapp-provider-status">Checking Twilio setup…</small></span></label>
+                </div>
+                <label class="form-field"><span>Expiry reminder days</span><input type="text" id="reminder-days" inputmode="numeric" maxlength="48" placeholder="90, 30, 15, 7, 0"><small>Comma-separated days before expiry (0 means expiry day, maximum 365). Applies to all accounts.</small></label>
+                <label class="channel-option"><input type="checkbox" id="weekly-digest-enabled"><span><strong>Weekly email digest</strong><small>Send each uploader a summary every Monday.</small></span></label>
+                <div class="schedule-info" id="schedule-info"></div>
+                <div class="settings-actions">
+                  <button class="secondary-button" id="save-notification-settings">Save channel settings</button>
+                  <span class="settings-save-status" id="settings-save-status" role="status"></span>
+                </div>
+                <div class="test-notification">
+                  <div><strong>Test delivery</strong><small>Send a test to the contact details below. No medicine is added.</small></div>
+                  <label><span class="sr-only">Test email address</span><input type="email" id="test-email" placeholder="you@example.com"></label>
+                  <label><span class="sr-only">Test WhatsApp number</span><input type="tel" id="test-whatsapp" placeholder="+14155552671"></label>
+                  <button class="secondary-button" id="send-test-notification">Send test</button>
+                </div>
+                <details class="delivery-history">
+                  <summary>Recent delivery history <span id="history-count">0</span></summary>
+                  <div class="history-list" id="notification-history"><p class="history-empty">No notification deliveries yet.</p></div>
+                </details>
+              </div>
+            </details>
+          </section>
+          {% endif %}
+          {% else %}
+          <section class="notification-section personal-notification-section">
+            <div class="personal-notification-card">
+              <span class="settings-icon">♧</span>
+              <div class="settings-summary">
+                <strong>Your expiry notifications</strong>
+                <small>Only reminders about the expiry of your own medicines are sent.</small>
+              </div>
+              <label class="reminder-toggle"><input type="checkbox" id="my-email-reminders"><span>Email expiry reminders</span></label>
+              <label class="reminder-toggle"><input type="checkbox" id="my-weekly-digest"><span>Weekly email digest</span></label>
+              <small class="personal-email" id="my-email-address"></small>
+              <small class="personal-email-provider" id="my-email-provider-status"></small>
+              <button class="secondary-button" id="enable-personal-browser-alerts" type="button">Enable browser alerts</button>
+            </div>
+            <p class="personal-notification-note" id="personal-notification-note">Email expiry reminders follow the schedule set by management. Weekly summaries are sent on Mondays. Browser alerts appear while MediTrack is open.</p>
+          </section>
+          {% endif %}
+
+          <section class="inventory-section {{ 'management-inventory' if is_management else 'personal-inventory' }}" id="inventory">
+            <div class="inventory-heading">
+              <div><div class="section-title-row"><h2>{{ "Medicine inventory" if is_management else "My medicines" }}</h2><span class="inventory-count" id="inventory-count">0 items</span></div><p>{{ "Manage and monitor all medicines and batch details." if is_management else "Your personal medicines and their expiry dates." }}</p></div>
+              {% if is_management %}
+              <a class="export-button" href="/api/export" id="export-csv"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4"/></svg> Export CSV</a>
+              {% endif %}
+            </div>
+            <div class="toolbar">
+              <label class="search-box"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg><input id="search-input" type="search" placeholder="Search medicine or batch number..." autocomplete="off"><kbd>⌘ K</kbd></label>
+              <label class="filter-box"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10m-7 6h4"/></svg><select id="status-filter" aria-label="Filter medicines">
+                <option value="all">All medicines</option>
+                {% if is_management %}<option value="alerts">Needs attention</option>{% endif %}
+                <option value="expired">Expired</option><option value="7">Expires in 7 days</option><option value="15">Expires in 15 days</option><option value="30">Expires in 30 days</option><option value="90">Expires in 90 days</option><option value="healthy">In date</option>
+                {% if is_management %}<option value="low-stock">Low stock</option>{% endif %}
+              </select></label>
+              {% if is_global_management %}<label class="filter-box branch-filter"><select id="branch-filter" aria-label="Filter by branch"><option value="">All branches</option></select></label>{% endif %}
+              <button class="filter-reset" id="clear-filters" title="Clear filters" aria-label="Clear search filters">↻</button>
+            </div>
+            <div class="inventory-grid">
+              <div class="inventory-results">
+                <div class="table-wrap">
+                  <table>
+                <thead><tr>
+                  <th>MEDICINE</th>
+                  {% if is_management %}<th>BATCH NUMBER</th><th>QUANTITY</th>{% endif %}
+                  <th>EXPIRY DATE</th><th>STATUS</th><th><span class="sr-only">Actions</span></th>
+                </tr></thead>
+                <tbody id="medicine-rows"><tr><td colspan="{{ 6 if is_management else 4 }}" class="loading-cell">Loading your inventory…</td></tr></tbody>
+                  </table>
+                  <div class="empty-state" id="empty-state" hidden><span class="empty-icon">⌕</span><strong>No medicines found</strong><p>Try changing your search or filters, or add a medicine to get started.</p><button class="secondary-button" id="empty-add">Add medicine</button></div>
+                </div>
+                <div class="table-footer"><span id="table-summary">Showing 0 medicines</span>{% if is_management %}<span class="threshold-note"><span class="mini-dot"></span> Low stock threshold: 10 units</span>{% endif %}</div>
+              </div>
+              <aside class="expiry-filter-sidebar" aria-label="Quick expiry filters">
+                <div class="expiry-filter-heading"><strong>Expiry filters</strong><small>Your medicines by expiry date</small></div>
+                <div class="expiry-filter-options">
+                  <button type="button" data-expiry-filter="90">Expiring soon <span id="expiry-count-90">0</span></button>
+                  <button type="button" data-expiry-filter="15">Within 15 days <span id="expiry-count-15">0</span></button>
+                  <button type="button" data-expiry-filter="7">Within 7 days <span id="expiry-count-7">0</span></button>
+                  <button type="button" data-expiry-filter="expired">Expired <span id="expiry-count-expired">0</span></button>
+                </div>
+                <div class="expiry-filter-list" id="expiry-filter-list"><p>No medicines expiring soon.</p></div>
+              </aside>
+            </div>
+          </section>
+          <footer class="page-footer"><span>© 2025 MediTrack</span><span>Helping you keep care in date <span class="footer-heart">♥</span></span></footer>
+        </div>
+      </main>
+    </div>
+
+    <div class="modal-backdrop" id="medicine-modal" hidden>
+      <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-heading"><div><span class="modal-eyebrow">INVENTORY ITEM</span><h2 id="modal-title">Add medicine</h2><p>Enter the details for this medicine batch.</p></div><button class="close-button" id="close-modal" aria-label="Close dialog">×</button></div>
+        <form id="medicine-form">
+          <label class="form-field"><span>Medicine name</span><input name="name" required maxlength="120" placeholder="e.g. Paracetamol 500mg"></label>
+          {% if is_management %}
+          <div class="form-grid">
+            <label class="form-field"><span>Batch number</span><input name="batch_number" required maxlength="80" placeholder="e.g. PCM-25017"></label>
+            <label class="form-field"><span>Quantity <small>(units)</small></span><input name="quantity" required type="number" min="0" step="1" placeholder="0"></label>
+          </div>
+          <label class="form-field"><span>Expiry date</span><input name="expiry_date" required type="date"></label>
+          {% if is_global_management %}
+          <label class="form-field"><span>Branch</span><select name="branch_id" id="medicine-branch"><option value="">Unassigned inventory</option></select></label>
+          {% elif branch_staff %}
+          <input type="hidden" name="branch_id" value="{{ user.branch_id }}">
+          <p class="branch-assignment-note">This medicine will be added to {{ user.branch_name }}.</p>
+          {% endif %}
+          <div class="contact-fields">
+            <div class="contact-heading"><strong>Who should receive alerts?</strong><small>Expiry and add/update emails go to the uploader and the selected branch contact.</small></div>
+            <label class="form-field"><span>Uploader name</span><input name="uploader_name" required maxlength="100" autocomplete="name" placeholder="e.g. Jordan Lee"></label>
+            <label class="form-field"><span>Email address</span><input name="uploader_email" type="email" required maxlength="254" autocomplete="email" placeholder="you@example.com"></label>
+            <p class="contact-hint">Email is used for the medicine uploader’s alerts.</p>
+          </div>
+          <p class="form-error" id="form-error" role="alert" hidden></p>
+          {% else %}
+          <label class="form-field"><span>Expiry date <small>(read the date printed on your medicine packaging)</small></span><input name="expiry_date" required type="date"></label>
+          <label class="form-field"><span>Email for expiry reminders</span><input id="personal-email" name="uploader_email" type="email" required maxlength="254" autocomplete="email" value="{{ user.email }}" placeholder="you@example.com"></label>
+          <p class="personal-privacy-note">Your medicine details are private to your account. Expiry reminders go to the email entered above. No phone number is collected, and no upload or stock alerts are sent.</p>
+          <p class="form-error" id="form-error" role="alert" hidden></p>
+          {% endif %}
+          <div class="modal-actions"><button class="secondary-button" type="button" id="cancel-modal">Cancel</button><button class="primary-button" id="save-medicine" type="submit">Save medicine</button></div>
+        </form>
+      </section>
+    </div>
+    <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
+  </body>
+</html>
